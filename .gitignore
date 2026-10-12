@@ -1,0 +1,34 @@
+# Node
+node_modules/
+frontend/dist/
+frontend/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# AWS SAM
+infrastructure/.aws-sam/
+samconfig.toml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+
+# Secrets
+*.pem
+*.key
+.env
+.env.*
+!.env.example
