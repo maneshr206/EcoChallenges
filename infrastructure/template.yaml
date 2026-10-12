@@ -1,0 +1,341 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: EcoChallenges — serverless social sustainability platform
+
+# ─── Global defaults ──────────────────────────────────────────────────────────
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 256
+    Architectures: [arm64]
+    Environment:
+      Variables:
+        CHALLENGES_TABLE: !Ref ChallengesTable
+        POSTS_TABLE:      !Ref PostsTable
+        USERS_TABLE:      !Ref UsersTable
+        PROOF_BUCKET:     !Ref ProofBucket
+        AWS_ACCOUNT_ID:   !Ref AWS::AccountId
+    Layers:
+      - !Ref DepsLayer
+
+# ─── Parameters ───────────────────────────────────────────────────────────────
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+
+# ─── Resources ────────────────────────────────────────────────────────────────
+Resources:
+
+  # ── DepsLayer (shared Python deps) ──────────────────────────────────────────
+  DepsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: ecochallenges-deps
+      ContentUri: ../backend/
+      CompatibleRuntimes: [python3.11]
+      RetentionPolicy: Retain
+    Metadata:
+      BuildMethod: python3.11
+
+  # ── HTTP API ─────────────────────────────────────────────────────────────────
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Stage
+      CorsConfiguration:
+        AllowOrigins: ["*"]
+        AllowHeaders: ["Authorization", "Content-Type"]
+        AllowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}"
+              audience:
+                - !Ref UserPoolClient
+
+  # ── Cognito User Pool ────────────────────────────────────────────────────────
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: EcoChallenges-users
+      AutoVerifiedAttributes: [email]
+      UsernameAttributes: [email]
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: false
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+      LambdaConfig:
+        PostConfirmation: !GetAtt UsersFunction.Arn
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: ecochallenges-web
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      AccessTokenValidity:  8
+      IdTokenValidity:      8
+      RefreshTokenValidity: 30
+
+  # ── S3 Proof Bucket ──────────────────────────────────────────────────────────
+  ProofBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "ecochallenges-proofs-${AWS::AccountId}-${Stage}"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: ["*"]
+            AllowedMethods: [GET, PUT]
+            AllowedHeaders: ["*"]
+            MaxAge: 3000
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls:       false
+        BlockPublicPolicy:     false
+        IgnorePublicAcls:      false
+        RestrictPublicBuckets: false
+
+  # ── DynamoDB Tables ──────────────────────────────────────────────────────────
+  ChallengesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: EcoChallenges_Challenges
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: challengeId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: challengeId
+          KeyType: HASH
+
+  PostsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: EcoChallenges_Posts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: postId
+          AttributeType: S
+        - AttributeName: challengeId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: postId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ChallengeIndex
+          KeySchema:
+            - AttributeName: challengeId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: EcoChallenges_Users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+
+  # ── Lambda Functions ─────────────────────────────────────────────────────────
+
+  ChallengesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ecochallenges-challenges
+      CodeUri: ../backend/challenges/
+      Handler: handler.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ChallengesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        ListChallenges:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /challenges
+            Method: GET
+        GetChallenge:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /challenges/{id}
+            Method: GET
+        CreateChallenge:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /challenges
+            Method: POST
+        JoinChallenge:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /challenges/{id}/join
+            Method: POST
+
+  PostsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ecochallenges-posts
+      CodeUri: ../backend/posts/
+      Handler: handler.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PostsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ChallengesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - S3ReadPolicy:
+            BucketName: !Ref ProofBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - comprehend:DetectSentiment
+                - comprehend:DetectKeyPhrases
+                - comprehend:DetectDominantLanguage
+                - rekognition:DetectModerationLabels
+                - rekognition:DetectLabels
+              Resource: "*"
+      Events:
+        ListPosts:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /challenges/{id}/posts
+            Method: GET
+        CreatePost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /posts
+            Method: POST
+        LikePost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /posts/{postId}/like
+            Method: POST
+
+  UploadUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ecochallenges-upload-url
+      CodeUri: ../backend/posts/
+      Handler: upload_url.handler
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Ref ProofBucket
+      Events:
+        GetUploadUrl:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /upload-url
+            Method: POST
+
+  UsersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ecochallenges-users
+      CodeUri: ../backend/users/
+      Handler: handler.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        GetUser:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /users/{id}
+            Method: GET
+        UpdateUser:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /users/me
+            Method: PUT
+
+  LeaderboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ecochallenges-leaderboard
+      CodeUri: ../backend/leaderboard/
+      Handler: handler.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        GetLeaderboard:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /leaderboard
+            Method: GET
+
+  # Allow Cognito to invoke the PostConfirmation Lambda
+  CognitoInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt UsersFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+# ─── Outputs ─────────────────────────────────────────────────────────────────
+Outputs:
+  ApiUrl:
+    Description: HTTP API endpoint URL
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+    Export:
+      Name: EcoChallengesApiUrl
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: EcoChallengesUserPoolId
+
+  UserPoolClientId:
+    Description: Cognito App Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: EcoChallengesUserPoolClientId
+
+  ProofBucketName:
+    Description: S3 bucket for proof images
+    Value: !Ref ProofBucket
+    Export:
+      Name: EcoChallengesProofBucket
