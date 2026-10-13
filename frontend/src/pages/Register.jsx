@@ -21,9 +21,27 @@ export default function Register() {
   };
 
   const validatePassword = (pw) => {
-    if (pw.length < 8) return 'Password must be at least 8 characters';
+    if (pw.length < 8)           return 'At least 8 characters required';
+    if (!/[A-Z]/.test(pw))       return 'Must include at least one uppercase letter';
+    if (!/[0-9]/.test(pw))       return 'Must include at least one number';
+    if (!/[^A-Za-z0-9]/.test(pw)) return 'Must include at least one special character (e.g. @, !, #)';
     return '';
   };
+
+  // Live password strength checker
+  const passwordStrength = (pw) => {
+    let score = 0;
+    if (pw.length >= 8)            score++;
+    if (/[A-Z]/.test(pw))          score++;
+    if (/[0-9]/.test(pw))          score++;
+    if (/[^A-Za-z0-9]/.test(pw))   score++;
+    if (pw.length >= 12)           score++;
+    return score; // 0–5
+  };
+
+  const strength = passwordStrength(form.password);
+  const strengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong'][strength] || '';
+  const strengthColor = ['', 'bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-eco-500', 'bg-eco-600'][strength] || '';
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -107,9 +125,40 @@ export default function Register() {
                 type="password" name="password" required autoComplete="new-password"
                 value={form.password} onChange={handleChange}
                 className={`input ${pwError ? 'border-red-400 focus:ring-red-400' : ''}`}
-                placeholder="Min. 8 characters"
+                placeholder="Min. 8 chars, uppercase, number, symbol"
               />
-              {pwError && <p className="text-xs text-red-500 mt-1">{pwError}</p>}
+              {/* Strength bar */}
+              {form.password.length > 0 && (
+                <div className="mt-2">
+                  <div className="flex gap-1 h-1.5 mb-1">
+                    {[1,2,3,4,5].map((i) => (
+                      <div
+                        key={i}
+                        className={`flex-1 rounded-full transition-all ${i <= strength ? strengthColor : 'bg-gray-200'}`}
+                      />
+                    ))}
+                  </div>
+                  <p className={`text-xs ${strength <= 1 ? 'text-red-500' : strength <= 2 ? 'text-orange-500' : strength <= 3 ? 'text-yellow-600' : 'text-eco-600'}`}>
+                    {strengthLabel}
+                  </p>
+                </div>
+              )}
+              {/* Requirements checklist */}
+              {form.password.length > 0 && (
+                <ul className="mt-2 space-y-0.5">
+                  {[
+                    { rule: form.password.length >= 8,            text: 'At least 8 characters' },
+                    { rule: /[A-Z]/.test(form.password),          text: 'One uppercase letter' },
+                    { rule: /[0-9]/.test(form.password),          text: 'One number' },
+                    { rule: /[^A-Za-z0-9]/.test(form.password),   text: 'One special character (@, !, # …)' },
+                  ].map(({ rule, text }) => (
+                    <li key={text} className={`flex items-center gap-1.5 text-xs ${rule ? 'text-eco-600' : 'text-gray-400'}`}>
+                      <span>{rule ? '✓' : '○'}</span> {text}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {pwError && <p className="text-xs text-red-500 mt-1 font-medium">{pwError}</p>}
             </div>
 
             <button type="submit" disabled={loading} className="btn-primary w-full mt-2">

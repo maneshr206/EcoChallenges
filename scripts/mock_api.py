@@ -152,6 +152,51 @@ def current_user_id():
 
 def current_user_name():
     return request.headers.get("X-User-Name", "EcoChallenger")
+
+
+# ─── Moderation ───────────────────────────────────────────────────────────────
+import re
+
+# Only flag these clearly harmful words — NOT eco/health content
+HARD_BLOCK = re.compile(
+    r'\b(fuck|shit|bitch|asshole|cunt|nigger|faggot|retard|'
+    r'kill\s+your?self|suicide|bomb|terrorist|rape|porn|nude|'
+    r'naked|sex|drugs|cocaine|meth|heroin|weed\s+dealer|'
+    r'scam|hack|phish|password|credit.?card)\b',
+    re.IGNORECASE
+)
+
+# Content that is clearly off-topic for an eco/health platform
+SPAM_PATTERNS = re.compile(
+    r'(click here|buy now|free money|earn \$|make money fast|'
+    r'casino|gambling|lottery|prize winner|congratulations you won|'
+    r'weight loss pill|diet pill|get rich)',
+    re.IGNORECASE
+)
+
+def moderate_content(text: str, image_url: str = "") -> tuple:
+    """
+    Returns (status, reason): status is 'approved' or 'flagged'.
+    Only flags genuinely inappropriate content — not normal eco/health posts.
+    """
+    if not text:
+        return ("flagged", "empty_content")
+
+    # 1. Hard block — explicit harmful language
+    match = HARD_BLOCK.search(text)
+    if match:
+        return ("flagged", f"inappropriate_language: {match.group()}")
+
+    # 2. Spam / off-topic commercial content
+    if SPAM_PATTERNS.search(text):
+        return ("flagged", "spam_or_off_topic")
+
+    # 3. Too short to be a real submission (less than 10 chars)
+    if len(text.strip()) < 10:
+        return ("flagged", "too_short")
+
+    # Everything else passes — eco/health/community content is welcome
+    return ("approved", None)
 @app.route("/auth/login", methods=["POST"])
 def login():
     data  = request.json or {}
@@ -256,48 +301,53 @@ def create_post():
     user_id   = data.get("userId") or current_user_id()
     user      = users_db.get(user_id, {})
     user_name = user.get("username") or user.get("name") or current_user_name()
+    content   = data.get("content", "").strip()
+    image_url = data.get("imageUrl") or ""
+
+    # ── Moderation ────────────────────────────────────────────────────────────
+    mod_status, mod_reason = moderate_content(content, image_url)
 
     post = {
         "postId":           str(uuid.uuid4()),
         "challengeId":      cid,
         "userId":           user_id,
         "userName":         user_name,
-        "content":          data.get("content", ""),
-        "imageUrl":         data.get("imageUrl"),
+        "content":          content,
+        "imageUrl":         image_url or None,
         "likeCount":        0,
         "createdAt":        datetime.datetime.now().isoformat(),
-        "moderationStatus": "approved",
-        "sentiment":        "POSITIVE",
+        "moderationStatus": mod_status,
+        "moderationReason": mod_reason,
+        "sentiment":        "POSITIVE" if mod_status == "approved" else "NEUTRAL",
     }
     posts_db.setdefault(cid, []).insert(0, post)
 
-    # Award points to the correct user only
-    ch = next((c for c in challenges_db if c["challengeId"] == cid), None)
-    if ch and user_id in users_db:
-        pts = ch.get("points", 10)
-        u   = users_db[user_id]
-        u["totalPoints"]         += pts
-        u["challengesCompleted"] += 1
-        u["recentCompletions"].insert(0, {
-            "challengeId": cid,
-            "title":       ch["title"],
-            "points":      pts,
-        })
-        # Keep only last 5 completions
-        u["recentCompletions"] = u["recentCompletions"][:5]
-        # Update or insert in leaderboard
-        entry = next((e for e in leaderboard_db if e["userId"] == user_id), None)
-        if entry:
-            entry["totalPoints"]         = u["totalPoints"]
-            entry["challengesCompleted"] = u["challengesCompleted"]
-        else:
-            leaderboard_db.append({
-                "userId":              user_id,
-                "userName":            user_name,
-                "totalPoints":         u["totalPoints"],
-                "challengesCompleted": u["challengesCompleted"],
+    # Award points ONLY for approved posts
+    if mod_status == "approved":
+        ch = next((c for c in challenges_db if c["challengeId"] == cid), None)
+        if ch and user_id in users_db:
+            pts = ch.get("points", 10)
+            u   = users_db[user_id]
+            u["totalPoints"]         += pts
+            u["challengesCompleted"] += 1
+            u["recentCompletions"].insert(0, {
+                "challengeId": cid,
+                "title":       ch["title"],
+                "points":      pts,
             })
-        leaderboard_db.sort(key=lambda x: x["totalPoints"], reverse=True)
+            u["recentCompletions"] = u["recentCompletions"][:5]
+            entry = next((e for e in leaderboard_db if e["userId"] == user_id), None)
+            if entry:
+                entry["totalPoints"]         = u["totalPoints"]
+                entry["challengesCompleted"] = u["challengesCompleted"]
+            else:
+                leaderboard_db.append({
+                    "userId":              user_id,
+                    "userName":            user_name,
+                    "totalPoints":         u["totalPoints"],
+                    "challengesCompleted": u["challengesCompleted"],
+                })
+            leaderboard_db.sort(key=lambda x: x["totalPoints"], reverse=True)
 
     return jsonify(post), 201
 

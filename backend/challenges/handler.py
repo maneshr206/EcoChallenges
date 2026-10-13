@@ -140,14 +140,21 @@ def create_challenge(body: dict, user_id: str | None) -> dict:
             return response(400, {"message": f"Missing field: {field}"})
 
     now = datetime.now(timezone.utc).isoformat()
+    # Points locked by difficulty — ignore any client-supplied value
+    POINTS_BY_DIFFICULTY = {'easy': 30, 'medium': 40, 'hard': 50}
+    difficulty = body.get("difficulty", "medium")
+    locked_points = POINTS_BY_DIFFICULTY.get(difficulty, 40)
+
     item = {
         "challengeId":      str(uuid.uuid4()),
         "title":            body["title"][:200],
         "description":      body["description"][:1000],
         "category":         body["category"],
-        "points":           int(body["points"]),
-        "difficulty":       body.get("difficulty", "medium"),
+        "points":           locked_points,
+        "difficulty":       difficulty,
         "expiryDate":       body.get("expiryDate"),
+        "visibility":       body.get("visibility", "public"),
+        "inviteCode":       body.get("inviteCode"),
         "createdAt":        now,
         "createdBy":        user_id,
         "participantCount": 0,
