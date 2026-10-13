@@ -5,15 +5,6 @@ const AuthContext = createContext(null);
 const IS_LOCAL = !import.meta.env.VITE_COGNITO_USER_POOL_ID ||
   import.meta.env.VITE_COGNITO_USER_POOL_ID === 'us-east-1_PLACEHOLDER';
 
-// ─── Local mock user (used when no real Cognito is configured) ───────────────
-const MOCK_USER = {
-  userId:   'mock-user',
-  username: 'mock-user',
-  name:     'Manesh Ravikumar',
-  email:    'manesh@example.com',
-  signInDetails: { loginId: 'manesh@example.com' },
-};
-
 // ─── Real Cognito helpers (lazy-imported only when needed) ───────────────────
 async function cognitoSignIn(email, password) {
   const { signIn } = await import('aws-amplify/auth');
@@ -73,8 +64,25 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     if (IS_LOCAL) {
-      const u = { ...MOCK_USER, email, signInDetails: { loginId: email } };
+      // Derive a stable userId from email
+      const userId = 'user-' + email.replace('@', '_').replace('.', '_');
+      const name   = email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1);
+      const u = {
+        userId,
+        username: userId,
+        name,
+        email,
+        signInDetails: { loginId: email },
+      };
       sessionStorage.setItem('mock_user', JSON.stringify(u));
+      // Register user in mock API so profile has correct data
+      try {
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/users/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, name, email }),
+        });
+      } catch { /* API may not be up yet */ }
       setUser(u);
       return u;
     }
@@ -85,17 +93,24 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (email, password, name) => {
     if (IS_LOCAL) {
-      // In local mode: skip email confirmation, create user and log in immediately
+      const userId = 'user-' + email.replace('@', '_').replace('.', '_');
       const u = {
-        ...MOCK_USER,
-        email,
+        userId,
+        username: userId,
         name,
-        username: email,
+        email,
         signInDetails: { loginId: email },
       };
       sessionStorage.setItem('mock_user', JSON.stringify(u));
+      // Register user in mock API so profile starts at zero points
+      try {
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/users/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, name, email }),
+        });
+      } catch { /* API may not be up yet */ }
       setUser(u);
-      // Signal to Register page that signup is already complete — no confirm step needed
       return { isSignUpComplete: true, nextStep: { signUpStep: 'DONE' } };
     }
     return cognitoSignUp(email, password, name);

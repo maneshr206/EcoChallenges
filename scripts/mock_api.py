@@ -91,27 +91,39 @@ challenges_db = [
 posts_db = {}       # challengeId → list of posts
 joined_db = set()   # set of challengeIds the mock user has joined
 
-# Mock user state
-mock_user = {
-    "userId":              "mock-user",
-    "name":                "Manesh Ravikumar",
-    "email":               "manesh@example.com",
-    "totalPoints":         150,
-    "challengesCompleted": 3,
-    "streakDays":          7,
-    "joinedDate":          "2025-01-01T00:00:00Z",
-    "recentCompletions":   [
-        {"challengeId": "c1", "title": "Walk or Bike to Work", "points": 50},
-        {"challengeId": "c3", "title": "Plant Something",      "points": 30},
-    ],
-}
+# users_db: stores each registered/logged-in user by userId
+# New users start with 0 points and no completions
+users_db = {}
+
+def get_or_create_user(user_id, name, email):
+    """Return existing user or create a fresh one with zero points."""
+    if user_id not in users_db:
+        # Generate an eco-themed username from the name
+        first = name.split()[0] if name else "Eco"
+        eco_handles = ["EcoWarrior", "GreenChamp", "NatureGuard", "EcoHero", "PlanetSaver",
+                       "CleanAir", "GreenMind", "EcoRanger", "TreeGuard", "ZeroWaste"]
+        import random, hashlib
+        seed = int(hashlib.md5(user_id.encode()).hexdigest(), 16) % len(eco_handles)
+        eco_tag = eco_handles[seed]
+        users_db[user_id] = {
+            "userId":              user_id,
+            "name":                name,
+            "username":            f"{first}_{eco_tag}",   # e.g. Manesh_EcoWarrior
+            "email":               email,
+            "totalPoints":         0,
+            "challengesCompleted": 0,
+            "streakDays":          0,
+            "joinedDate":          datetime.datetime.now().isoformat(),
+            "recentCompletions":   [],
+        }
+    return users_db[user_id]
 
 leaderboard_db = [
-    {"userId": "u1", "userName": "EcoAmy",     "totalPoints": 420, "challengesCompleted": 8},
-    {"userId": "u2", "userName": "GreenJorge", "totalPoints": 380, "challengesCompleted": 7},
-    {"userId": "u3", "userName": "SustainLee", "totalPoints": 310, "challengesCompleted": 6},
-    {"userId": "u4", "userName": "NatureNia",  "totalPoints": 275, "challengesCompleted": 5},
-    {"userId": "mock-user", "userName": "Manesh Ravikumar", "totalPoints": 150, "challengesCompleted": 3},
+    {"userId": "u1", "userName": "EcoAmy_GreenChamp",   "totalPoints": 420, "challengesCompleted": 8},
+    {"userId": "u2", "userName": "Jorge_NatureGuard",   "totalPoints": 380, "challengesCompleted": 7},
+    {"userId": "u3", "userName": "Lee_PlanetSaver",     "totalPoints": 310, "challengesCompleted": 6},
+    {"userId": "u4", "userName": "Nia_TreeGuard",       "totalPoints": 275, "challengesCompleted": 5},
+    {"userId": "u5", "userName": "Alex_ZeroWaste",      "totalPoints": 190, "challengesCompleted": 4},
 ]
 
 # Gift vouchers catalogue — Canadian brands
@@ -133,14 +145,17 @@ redeemed_db = []   # list of redeemed vouchers for mock user
 # ─── Auth mock endpoints ─────────────────────────────────────────────────────
 @app.route("/auth/login", methods=["POST"])
 def login():
-    return jsonify({
-        "token": "mock-jwt-token",
-        "user":  {"userId": "mock-user", "name": "Manesh Ravikumar", "email": "manesh@example.com"}
-    })
+    data  = request.json or {}
+    email = data.get("email", "user@example.com")
+    name  = data.get("name") or email.split("@")[0].capitalize()
+    uid   = "user-" + email.replace("@","_").replace(".","_")
+    user  = get_or_create_user(uid, name, email)
+    return jsonify({"token": "mock-jwt-token", "user": user})
 
 @app.route("/auth/me", methods=["GET"])
 def me():
-    return jsonify({"userId": "mock-user", "name": "Manesh Ravikumar", "email": "manesh@example.com"})
+    # Read current user from session header if provided, else default
+    return jsonify({"userId": "mock-user", "name": "EcoChallenges User"})
 
 
 # ─── Challenges ──────────────────────────────────────────────────────────────
@@ -196,13 +211,17 @@ def list_posts(cid):
 
 @app.route("/posts", methods=["POST"])
 def create_post():
-    data = request.json or {}
-    cid  = data.get("challengeId", "c1")
+    data    = request.json or {}
+    cid     = data.get("challengeId", "c1")
+    user_id = data.get("userId", list(users_db.keys())[0] if users_db else "unknown")
+    user    = users_db.get(user_id, {})
+    user_name = user.get("username") or user.get("name") or "EcoChallenger"
+
     post = {
         "postId":           str(uuid.uuid4()),
         "challengeId":      cid,
-        "userId":           "mock-user",
-        "userName":         "Manesh Ravikumar",
+        "userId":           user_id,
+        "userName":         user_name,
         "content":          data.get("content", ""),
         "imageUrl":         data.get("imageUrl"),
         "likeCount":        0,
@@ -212,18 +231,33 @@ def create_post():
     }
     posts_db.setdefault(cid, []).insert(0, post)
 
-    # Award points to mock user
+    # Award points to the correct user only
     ch = next((c for c in challenges_db if c["challengeId"] == cid), None)
-    if ch:
+    if ch and user_id in users_db:
         pts = ch.get("points", 10)
-        mock_user["totalPoints"] += pts
-        mock_user["challengesCompleted"] += 1
-        # Update leaderboard entry
-        for entry in leaderboard_db:
-            if entry["userId"] == "mock-user":
-                entry["totalPoints"] = mock_user["totalPoints"]
-                entry["challengesCompleted"] = mock_user["challengesCompleted"]
-        leaderboard_db.sort(key=lambda u: u["totalPoints"], reverse=True)
+        u   = users_db[user_id]
+        u["totalPoints"]         += pts
+        u["challengesCompleted"] += 1
+        u["recentCompletions"].insert(0, {
+            "challengeId": cid,
+            "title":       ch["title"],
+            "points":      pts,
+        })
+        # Keep only last 5 completions
+        u["recentCompletions"] = u["recentCompletions"][:5]
+        # Update or insert in leaderboard
+        entry = next((e for e in leaderboard_db if e["userId"] == user_id), None)
+        if entry:
+            entry["totalPoints"]         = u["totalPoints"]
+            entry["challengesCompleted"] = u["challengesCompleted"]
+        else:
+            leaderboard_db.append({
+                "userId":              user_id,
+                "userName":            user_name,
+                "totalPoints":         u["totalPoints"],
+                "challengesCompleted": u["challengesCompleted"],
+            })
+        leaderboard_db.sort(key=lambda x: x["totalPoints"], reverse=True)
 
     return jsonify(post), 201
 
@@ -245,18 +279,47 @@ def get_leaderboard():
 
 
 # ─── Users ────────────────────────────────────────────────────────────────────
+@app.route("/users/register", methods=["POST"])
+def register_user():
+    """Called by frontend on login/signup to ensure user record exists."""
+    data    = request.json or {}
+    user_id = data.get("userId")
+    name    = data.get("name", "EcoChallenger")
+    email   = data.get("email", "")
+    if not user_id:
+        return jsonify({"message": "userId required"}), 400
+    user = get_or_create_user(user_id, name, email)
+    return jsonify(user), 201
+
+
 @app.route("/users/<uid>", methods=["GET"])
 def get_user(uid):
-    u = dict(mock_user)
-    u["recentCompletions"] = mock_user["recentCompletions"]
-    return jsonify(u)
+    # Get real stored user or return a clean zero-points profile
+    if uid in users_db:
+        return jsonify(users_db[uid])
+    # Fallback for unknown UIDs (e.g. leaderboard mock users)
+    return jsonify({
+        "userId":              uid,
+        "name":                "EcoChallenger",
+        "username":            "EcoChallenger",
+        "email":               "",
+        "totalPoints":         0,
+        "challengesCompleted": 0,
+        "streakDays":          0,
+        "joinedDate":          datetime.datetime.now().isoformat(),
+        "recentCompletions":   [],
+    })
 
 @app.route("/users/me", methods=["PUT"])
 def update_user():
     data = request.json or {}
-    for k in ["bio", "location"]:
-        if k in data:
-            mock_user[k] = data[k]
+    # Find the current user (first in users_db for mock)
+    if users_db:
+        uid  = next(iter(users_db))
+        user = users_db[uid]
+        for k in ["bio", "location", "name"]:
+            if k in data:
+                user[k] = data[k]
     return jsonify({"message": "Updated"})
 
 
@@ -272,7 +335,12 @@ def upload_url():
 # ─── Vouchers ─────────────────────────────────────────────────────────────────
 @app.route("/vouchers", methods=["GET"])
 def list_vouchers():
-    return jsonify({"vouchers": vouchers_db, "userPoints": mock_user["totalPoints"]})
+    # Get points for the current user (first logged-in user)
+    current_points = 0
+    if users_db:
+        uid = next(iter(users_db))
+        current_points = users_db[uid].get("totalPoints", 0)
+    return jsonify({"vouchers": vouchers_db, "userPoints": current_points})
 
 
 @app.route("/vouchers/<vid>/redeem", methods=["POST"])
@@ -281,28 +349,32 @@ def redeem_voucher(vid):
     if not voucher:
         return jsonify({"message": "Voucher not found"}), 404
 
-    if mock_user["totalPoints"] < voucher["pointsCost"]:
-        return jsonify({"message": f"Not enough points. Need {voucher['pointsCost']}, have {mock_user['totalPoints']}"}), 400
+    if not users_db:
+        return jsonify({"message": "No user logged in"}), 401
 
-    # Deduct points
-    mock_user["totalPoints"] -= voucher["pointsCost"]
+    uid  = next(iter(users_db))
+    user = users_db[uid]
+
+    if user["totalPoints"] < voucher["pointsCost"]:
+        return jsonify({"message": f"Not enough points. Need {voucher['pointsCost']}, you have {user['totalPoints']}"}), 400
+
+    user["totalPoints"] -= voucher["pointsCost"]
 
     # Update leaderboard
     for entry in leaderboard_db:
-        if entry["userId"] == "mock-user":
-            entry["totalPoints"] = mock_user["totalPoints"]
+        if entry["userId"] == uid:
+            entry["totalPoints"] = user["totalPoints"]
 
-    # Generate mock voucher code
     code = f"ECO-{voucher['brand'][:3].upper()}-{str(uuid.uuid4())[:6].upper()}"
     redemption = {
-        "redemptionId": str(uuid.uuid4()),
-        "voucherId":    vid,
-        "brand":        voucher["brand"],
-        "discount":     voucher["discount"],
-        "code":         code,
-        "redeemedAt":   datetime.datetime.now().isoformat(),
-        "pointsSpent":  voucher["pointsCost"],
-        "remainingPoints": mock_user["totalPoints"],
+        "redemptionId":    str(uuid.uuid4()),
+        "voucherId":       vid,
+        "brand":           voucher["brand"],
+        "discount":        voucher["discount"],
+        "code":            code,
+        "redeemedAt":      datetime.datetime.now().isoformat(),
+        "pointsSpent":     voucher["pointsCost"],
+        "remainingPoints": user["totalPoints"],
     }
     redeemed_db.append(redemption)
     return jsonify(redemption), 201
@@ -310,7 +382,11 @@ def redeem_voucher(vid):
 
 @app.route("/vouchers/redeemed", methods=["GET"])
 def list_redeemed():
-    return jsonify({"redeemed": redeemed_db, "userPoints": mock_user["totalPoints"]})
+    current_points = 0
+    if users_db:
+        uid = next(iter(users_db))
+        current_points = users_db[uid].get("totalPoints", 0)
+    return jsonify({"redeemed": redeemed_db, "userPoints": current_points})
 
 
 if __name__ == "__main__":
