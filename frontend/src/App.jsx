@@ -11,6 +11,7 @@ import Profile      from './pages/Profile';
 import Login        from './pages/Login';
 import Register     from './pages/Register';
 import Vouchers     from './pages/Vouchers';
+import CreateChallenge from './pages/CreateChallenge';
 
 // Redirect unauthenticated users to /login
 function PrivateRoute({ children }) {
@@ -44,6 +45,7 @@ function AppRoutes() {
           <Route path="/challenges/:id/submit" element={<PrivateRoute><SubmitProof /></PrivateRoute>} />
           <Route path="/leaderboard" element={<PrivateRoute><Leaderboard /></PrivateRoute>} />
           <Route path="/vouchers"    element={<PrivateRoute><Vouchers /></PrivateRoute>} />
+          <Route path="/create"      element={<PrivateRoute><CreateChallenge /></PrivateRoute>} />
           <Route path="/profile/:id" element={<PrivateRoute><Profile /></PrivateRoute>} />
           <Route path="*"           element={<Navigate to="/" replace />} />
         </Routes>

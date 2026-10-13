@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Leaf, Trophy, LayoutGrid, User, LogOut, Menu, X, Gift } from 'lucide-react';
+import { Leaf, Trophy, LayoutGrid, User, LogOut, Menu, X, Gift, PlusCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Navbar() {
@@ -38,6 +38,9 @@ export default function Navbar() {
             <NavLink to="/leaderboard" className={navLinkClass}><Trophy size={16} />Leaderboard</NavLink>
             <NavLink to="/vouchers"    className={navLinkClass}><Gift size={16} />Rewards</NavLink>
             <NavLink to={`/profile/${user.userId}`} className={navLinkClass}><User size={16} />Profile</NavLink>
+            <NavLink to="/create"      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-eco-600 text-white hover:bg-eco-700 transition-colors ml-1">
+              <PlusCircle size={16} /> Create
+            </NavLink>
           </nav>
         )}
 
@@ -45,8 +48,8 @@ export default function Navbar() {
         <div className="flex items-center gap-2">
           {user ? (
             <>
-              <span className="hidden md:block text-xs text-gray-500">
-                {user.signInDetails?.loginId ?? user.username}
+              <span className="hidden md:block text-xs text-gray-500 max-w-[120px] truncate">
+                {user.name || user.signInDetails?.loginId?.split('@')[0] || 'EcoUser'}
               </span>
               <button onClick={handleLogout} className="btn-secondary hidden md:flex items-center gap-1 text-sm px-3 py-1.5">
                 <LogOut size={15} /> Sign out
@@ -71,6 +74,10 @@ export default function Navbar() {
           <NavLink to="/leaderboard" className={navLinkClass} onClick={() => setOpen(false)}><Trophy size={16} />Leaderboard</NavLink>
           <NavLink to="/vouchers"    className={navLinkClass} onClick={() => setOpen(false)}><Gift size={16} />Rewards</NavLink>
           <NavLink to={`/profile/${user.userId}`} className={navLinkClass} onClick={() => setOpen(false)}><User size={16} />Profile</NavLink>
+          <NavLink to="/create"      onClick={() => setOpen(false)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-eco-600 text-white hover:bg-eco-700 transition-colors">
+            <PlusCircle size={16} /> Create Challenge
+          </NavLink>
           <button onClick={() => { handleLogout(); setOpen(false); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
             <LogOut size={16} /> Sign out

@@ -62,7 +62,11 @@ export default function Profile() {
             </p>
 
             <p className="text-xs text-gray-400 mt-1">
-              🌿 EcoChallenger · Member since {profile.joinedDate?.slice(0, 10) ?? '—'}
+              🌿 EcoChallenger · Member since {
+                profile.joinedDate
+                  ? new Date(profile.joinedDate).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })
+                  : 'Today'
+              }
             </p>
           </div>
         </div>
