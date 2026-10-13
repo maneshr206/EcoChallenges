@@ -15,7 +15,16 @@ export default function ChallengeDetail() {
   const [posts,     setPosts]     = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [joining,   setJoining]   = useState(false);
-  const fetchedRef = useRef(false); // prevent double-fetch in StrictMode
+  const fetchedRef = useRef(false);
+
+  // Reset all state when navigating to a different challenge
+  useEffect(() => {
+    setChallenge(null);
+    setPosts([]);
+    setLoading(true);
+    setJoining(false);
+    fetchedRef.current = false;
+  }, [id]);
 
   useEffect(() => {
     if (fetchedRef.current) return;

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getVouchers, redeemVoucher, getRedeemedVouchers } from '../api/client';
-import { Star, Gift, CheckCircle, Copy, ChevronDown, ChevronUp } from 'lucide-react';
+import { Star, Gift, CheckCircle, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const categoryColors = {

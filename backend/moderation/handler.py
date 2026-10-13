@@ -73,23 +73,24 @@ def moderate_text(text: str) -> dict:
         sentiment_resp = comprehend.detect_sentiment(Text=text[:5000], LanguageCode=lang_code)
         sentiment = sentiment_resp["Sentiment"]  # POSITIVE | NEGATIVE | NEUTRAL | MIXED
 
-        if sentiment == "NEGATIVE":
-            logger.info("Negative sentiment detected")
-            return {"status": "flagged", "reason": "negative_sentiment", "sentiment": sentiment}
+        # Only flag strongly NEGATIVE text that also lacks eco keywords.
+        # Many valid eco posts use negative framing: "I stopped driving", "no more plastic".
+        # So we check NEGATIVE sentiment alongside topic relevance, not instead of it.
 
         # 3. Topic relevance — key phrases
-        kp_resp = comprehend.detect_key_phrases(Text=text[:5000], LanguageCode=lang_code)
+        kp_resp  = comprehend.detect_key_phrases(Text=text[:5000], LanguageCode=lang_code)
         phrases  = [kp["Text"].lower() for kp in kp_resp.get("KeyPhrases", [])]
         combined = " ".join(phrases) + " " + text.lower()
-
         on_theme = any(kw in combined for kw in ECO_KEYWORDS)
+
+        # Flag only if NEGATIVE AND completely off-topic
+        if sentiment == "NEGATIVE" and not on_theme:
+            logger.info("Negative sentiment + off-topic — flagging")
+            return {"status": "flagged", "reason": "negative_off_topic", "sentiment": sentiment}
+
         if not on_theme:
             logger.info("Post not on eco/health theme")
-            return {
-                "status": "flagged",
-                "reason": "off_topic",
-                "sentiment": sentiment,
-            }
+            return {"status": "flagged", "reason": "off_topic", "sentiment": sentiment}
 
         return {"status": "approved", "reason": None, "sentiment": sentiment}
 

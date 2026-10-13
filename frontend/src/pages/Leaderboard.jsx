@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getLeaderboard } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Trophy, Medal } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const medalColors = ['text-yellow-500', 'text-gray-400', 'text-amber-600'];

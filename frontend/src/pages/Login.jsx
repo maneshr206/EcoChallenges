@@ -4,9 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { Leaf } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const IS_LOCAL = !import.meta.env.VITE_COGNITO_USER_POOL_ID ||
-  import.meta.env.VITE_COGNITO_USER_POOL_ID === 'us-east-1_PLACEHOLDER';
-
 export default function Login() {
   const { login }             = useAuth();
   const navigate              = useNavigate();
@@ -23,7 +20,19 @@ export default function Login() {
       toast.success('Welcome back! 🌿');
       navigate('/feed');
     } catch (err) {
-      toast.error(err.message || 'Login failed');
+      const code = err?.name || err?.code;
+
+      if (code === 'UserNotConfirmedException') {
+        // Account exists but email not verified — redirect to finish signup
+        toast('Please verify your email first.', { icon: '📧' });
+        navigate('/register', { state: { email: form.email, step: 'confirm' } });
+      } else if (code === 'NotAuthorizedException') {
+        toast.error('Incorrect email or password.');
+      } else if (code === 'UserNotFoundException') {
+        toast.error('No account found with this email. Please sign up.');
+      } else {
+        toast.error(err.message || 'Sign in failed — please try again');
+      }
     } finally {
       setLoading(false);
     }
@@ -38,13 +47,6 @@ export default function Login() {
           <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
           <p className="text-gray-500 text-sm mt-1">Sign in to your EcoChallenges account</p>
         </div>
-
-        {/* Local dev hint */}
-        {IS_LOCAL && (
-          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
-            🛠️ <strong>Local mode</strong> — enter any email & password to sign in instantly.
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="card flex flex-col gap-4">
           <div>
