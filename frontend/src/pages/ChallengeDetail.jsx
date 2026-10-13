@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getChallenge, getPosts, joinChallenge } from '../api/client';
 import PostCard from '../components/PostCard';
+import ShareButton from '../components/ShareButton';
 import { useAuth } from '../context/AuthContext';
 import { Clock, Star, Users, ArrowLeft, PlusCircle, CheckCircle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -100,7 +101,7 @@ export default function ChallengeDetail() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex gap-3 flex-wrap items-center">
           {!challenge.joined ? (
             <button
               onClick={handleJoin}
@@ -124,6 +125,13 @@ export default function ChallengeDetail() {
               </Link>
             </div>
           )}
+          {/* Share button always visible */}
+          <ShareButton
+            challengeId={id}
+            title={challenge.title}
+            isPrivate={challenge.visibility === 'private'}
+            inviteCode={challenge.inviteCode}
+          />
         </div>
       </div>
 

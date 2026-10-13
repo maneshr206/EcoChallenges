@@ -142,7 +142,16 @@ vouchers_db = [
 redeemed_db = []   # list of redeemed vouchers for mock user
 
 
-# ─── Auth mock endpoints ─────────────────────────────────────────────────────
+def current_user_id():
+    """Get the calling user's ID from header or fall back to first in users_db."""
+    uid = request.headers.get("X-User-Id")
+    if uid and uid in users_db:
+        return uid
+    return next(iter(users_db), "unknown")
+
+
+def current_user_name():
+    return request.headers.get("X-User-Name", "EcoChallenger")
 @app.route("/auth/login", methods=["POST"])
 def login():
     data  = request.json or {}
@@ -161,13 +170,44 @@ def me():
 # ─── Challenges ──────────────────────────────────────────────────────────────
 @app.route("/challenges", methods=["GET"])
 def list_challenges():
-    # Attach joined status to each challenge
+    uid = current_user_id()
     result = []
     for c in challenges_db:
         ch = dict(c)
         ch["joined"] = c["challengeId"] in joined_db
-        result.append(ch)
+        # Show public challenges + any private ones created by current user
+        if ch.get("visibility", "public") == "public" or ch.get("createdBy") == uid:
+            result.append(ch)
     return jsonify({"challenges": result, "count": len(result)})
+
+
+@app.route("/challenges", methods=["POST"])
+def create_challenge():
+    data = request.json or {}
+    required = ["title", "description", "category", "points"]
+    for field in required:
+        if field not in data:
+            return jsonify({"message": f"Missing field: {field}"}), 400
+
+    uid = current_user_id()
+    now = datetime.datetime.now().isoformat()
+    ch  = {
+        "challengeId":      str(uuid.uuid4()),
+        "title":            data["title"][:200],
+        "description":      data["description"][:1000],
+        "category":         data.get("category", "eco-friendly"),
+        "points":           int(data["points"]),
+        "difficulty":       data.get("difficulty", "medium"),
+        "expiryDate":       data.get("expiryDate"),
+        "visibility":       data.get("visibility", "public"),
+        "inviteCode":       data.get("inviteCode"),
+        "createdBy":        data.get("createdBy") or uid,
+        "participantCount": 0,
+        "createdAt":        now,
+        "joined":           False,
+    }
+    challenges_db.insert(0, ch)
+    return jsonify(ch), 201
 
 
 @app.route("/challenges/<cid>", methods=["GET"])
@@ -211,11 +251,11 @@ def list_posts(cid):
 
 @app.route("/posts", methods=["POST"])
 def create_post():
-    data    = request.json or {}
-    cid     = data.get("challengeId", "c1")
-    user_id = data.get("userId", list(users_db.keys())[0] if users_db else "unknown")
-    user    = users_db.get(user_id, {})
-    user_name = user.get("username") or user.get("name") or "EcoChallenger"
+    data      = request.json or {}
+    cid       = data.get("challengeId", "c1")
+    user_id   = data.get("userId") or current_user_id()
+    user      = users_db.get(user_id, {})
+    user_name = user.get("username") or user.get("name") or current_user_name()
 
     post = {
         "postId":           str(uuid.uuid4()),
@@ -335,11 +375,8 @@ def upload_url():
 # ─── Vouchers ─────────────────────────────────────────────────────────────────
 @app.route("/vouchers", methods=["GET"])
 def list_vouchers():
-    # Get points for the current user (first logged-in user)
-    current_points = 0
-    if users_db:
-        uid = next(iter(users_db))
-        current_points = users_db[uid].get("totalPoints", 0)
+    uid = current_user_id()
+    current_points = users_db.get(uid, {}).get("totalPoints", 0)
     return jsonify({"vouchers": vouchers_db, "userPoints": current_points})
 
 
@@ -349,18 +386,15 @@ def redeem_voucher(vid):
     if not voucher:
         return jsonify({"message": "Voucher not found"}), 404
 
-    if not users_db:
-        return jsonify({"message": "No user logged in"}), 401
-
-    uid  = next(iter(users_db))
+    uid  = current_user_id()
+    if uid not in users_db:
+        return jsonify({"message": "User not found — please log in again"}), 401
     user = users_db[uid]
 
     if user["totalPoints"] < voucher["pointsCost"]:
         return jsonify({"message": f"Not enough points. Need {voucher['pointsCost']}, you have {user['totalPoints']}"}), 400
 
     user["totalPoints"] -= voucher["pointsCost"]
-
-    # Update leaderboard
     for entry in leaderboard_db:
         if entry["userId"] == uid:
             entry["totalPoints"] = user["totalPoints"]
@@ -382,10 +416,8 @@ def redeem_voucher(vid):
 
 @app.route("/vouchers/redeemed", methods=["GET"])
 def list_redeemed():
-    current_points = 0
-    if users_db:
-        uid = next(iter(users_db))
-        current_points = users_db[uid].get("totalPoints", 0)
+    uid = current_user_id()
+    current_points = users_db.get(uid, {}).get("totalPoints", 0)
     return jsonify({"redeemed": redeemed_db, "userPoints": current_points})
 
 
