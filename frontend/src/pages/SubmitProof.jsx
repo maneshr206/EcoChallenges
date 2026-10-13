@@ -60,11 +60,29 @@ export default function SubmitProof() {
 
     try {
       // 1. Upload image to S3 via presigned URL
-      const { data: urlData } = await getUploadUrl(file.name, file.type);
-      await axios.put(urlData.uploadUrl, file, {
-        headers: { 'Content-Type': file.type },
-      });
-      const imageUrl = urlData.fileUrl;
+      let imageUrl = null;
+      try {
+        const { data: urlData } = await getUploadUrl(file.name, file.type);
+        await axios.put(urlData.uploadUrl, file, {
+          headers: { 'Content-Type': file.type },
+        });
+        imageUrl = urlData.fileUrl;
+      } catch (uploadErr) {
+        // In local dev the mock upload URL (httpbin) may fail — still submit the post
+        // In production a real S3 failure should block submission
+        const isLocal = !import.meta.env.VITE_COGNITO_USER_POOL_ID ||
+          import.meta.env.VITE_COGNITO_USER_POOL_ID === 'us-east-1_PLACEHOLDER';
+        if (!isLocal) {
+          setStatus(null);
+          toast.error('Image upload failed — please try again');
+          return;
+        }
+        // Local: use the mock fileUrl anyway
+        try {
+          const { data: urlData } = await getUploadUrl(file.name, file.type);
+          imageUrl = urlData.fileUrl;
+        } catch { imageUrl = null; }
+      }
 
       // 2. Create post — backend runs Comprehend + Rekognition
       const { data } = await createPost({ challengeId: id, content, imageUrl });

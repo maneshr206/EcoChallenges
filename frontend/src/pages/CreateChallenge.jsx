@@ -57,6 +57,9 @@ export default function CreateChallenge() {
     e.preventDefault();
     if (!form.title.trim())       { toast.error('Title is required'); return; }
     if (!form.description.trim()) { toast.error('Description is required'); return; }
+    if (!form.daysUntilExpiry || Number(form.daysUntilExpiry) < 1) {
+      toast.error('Duration must be at least 1 day'); return;
+    }
 
     setLoading(true);
     try {

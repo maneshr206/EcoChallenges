@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getChallenges } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -14,8 +14,7 @@ export default function Feed() {
   const [category,    setCategory]            = useState('all');
   const [search,      setSearch]              = useState('');
   const [loading,     setLoading]             = useState(true);
-  const [tab,         setTab]                 = useState('all'); // 'all' | 'mine'
-  const fetchedRef = useRef(false);
+  const [tab,         setTab]                 = useState('all');
 
   const fetchChallenges = useCallback(async () => {
     setLoading(true);
@@ -29,11 +28,7 @@ export default function Feed() {
     }
   }, []);
 
-  useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-    fetchChallenges();
-  }, [fetchChallenges]);
+  useEffect(() => { fetchChallenges(); }, [fetchChallenges]);
 
   // Client-side filter
   useEffect(() => {
@@ -63,7 +58,7 @@ export default function Feed() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { fetchedRef.current = false; fetchChallenges(); }}
+            onClick={fetchChallenges}
             className="btn-secondary flex items-center gap-1.5 text-sm"
           >
             <RefreshCw size={14} /> Refresh

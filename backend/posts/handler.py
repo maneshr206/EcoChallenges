@@ -193,16 +193,39 @@ def like_post(post_id: str, user_id: str | None) -> dict:
 
 
 def _award_points(challenge_id: str, user_id: str):
-    """Look up the challenge's point value and add it to the user's total."""
+    """
+    Award points for completing a challenge — only once per user per challenge.
+    Uses a DynamoDB condition to prevent double-awarding.
+    """
     try:
-        res   = chall_tbl.get_item(Key={"challengeId": challenge_id})
-        item  = res.get("Item", {})
-        pts   = int(item.get("points", 10))
+        res  = chall_tbl.get_item(Key={"challengeId": challenge_id})
+        item = res.get("Item", {})
+        pts  = int(item.get("points", 10))
+
+        # Record the completion as a set element — idempotent add
         users_tbl.update_item(
             Key={"userId": user_id},
-            UpdateExpression="ADD totalPoints :p, challengesCompleted :one",
-            ExpressionAttributeValues={":p": pts, ":one": 1},
+            UpdateExpression=(
+                "ADD totalPoints :p, challengesCompleted :one, "
+                "completedChallenges :cid"
+            ),
+            # Only award if the user hasn't already completed this challenge
+            ConditionExpression=(
+                "attribute_not_exists(completedChallenges) OR "
+                "NOT contains(completedChallenges, :cid_check)"
+            ),
+            ExpressionAttributeValues={
+                ":p":         pts,
+                ":one":       1,
+                ":cid":       {challenge_id},
+                ":cid_check": challenge_id,
+            },
         )
-        logger.info("Awarded %d points to user %s", pts, user_id)
+        logger.info("Awarded %d points to user %s for challenge %s", pts, user_id, challenge_id)
+    except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
+        logger.info(
+            "User %s already completed challenge %s — no duplicate points awarded",
+            user_id, challenge_id,
+        )
     except Exception as exc:
         logger.exception("_award_points error: %s", exc)

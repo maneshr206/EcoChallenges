@@ -64,20 +64,50 @@ Resources:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: EcoChallenges-users
-      AutoVerifiedAttributes: [email]
+      # Use email as the sign-in identifier
       UsernameAttributes: [email]
+      # Automatically send verification email on signup
+      AutoVerifiedAttributes: [email]
+      # Email verification — send a numeric code (not a link)
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: "Your EcoChallenges verification code 🌿"
+        EmailMessage: |
+          Welcome to EcoChallenges!
+
+          Your one-time verification code is: {####}
+
+          This code expires in 24 hours. Do not share it with anyone.
+
+          — The EcoChallenges Team 🌿
+      # Account recovery via email code only
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      # Password policy matches frontend rules
       Policies:
         PasswordPolicy:
           MinimumLength: 8
-          RequireUppercase: false
+          RequireUppercase: true
           RequireLowercase: true
           RequireNumbers: true
-          RequireSymbols: false
+          RequireSymbols: true
+          TemporaryPasswordValidityDays: 1
+      # User attributes
       Schema:
         - Name: name
           AttributeDataType: String
           Mutable: true
           Required: true
+        - Name: email
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+      # Block re-use of same email across accounts
+      UsernameConfiguration:
+        CaseSensitive: false
+      # Trigger: create DynamoDB profile after email confirmed
       LambdaConfig:
         PostConfirmation: !GetAtt UsersFunction.Arn
 
