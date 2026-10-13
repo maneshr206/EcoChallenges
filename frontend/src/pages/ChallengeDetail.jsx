@@ -1,21 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getChallenge, getPosts, joinChallenge } from '../api/client';
 import PostCard from '../components/PostCard';
 import { useAuth } from '../context/AuthContext';
-import { Clock, Star, Users, ArrowLeft, PlusCircle } from 'lucide-react';
+import { Clock, Star, Users, ArrowLeft, PlusCircle, CheckCircle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
 
 export default function ChallengeDetail() {
-  const { id } = useParams();
+  const { id }   = useParams();
   const { user } = useAuth();
   const [challenge, setChallenge] = useState(null);
   const [posts,     setPosts]     = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [joining,   setJoining]   = useState(false);
+  const fetchedRef = useRef(false); // prevent double-fetch in StrictMode
 
   useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+
     async function load() {
       try {
         const [cRes, pRes] = await Promise.all([getChallenge(id), getPosts(id)]);
@@ -31,13 +35,27 @@ export default function ChallengeDetail() {
   }, [id]);
 
   const handleJoin = async () => {
+    // Prevent double-click or re-joining
+    if (joining || challenge?.joined) return;
     setJoining(true);
     try {
-      await joinChallenge(id);
+      const res = await joinChallenge(id);
       toast.success('You joined the challenge! 🌿');
-      setChallenge((c) => ({ ...c, joined: true, participantCount: (c.participantCount ?? 0) + 1 }));
+      // Use server-returned count to stay accurate — don't add locally
+      setChallenge((c) => ({
+        ...c,
+        joined:           true,
+        participantCount: res.data.participantCount ?? (c.participantCount ?? 0) + 1,
+      }));
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not join');
+      const msg = err.response?.data?.message || 'Could not join';
+      if (err.response?.data?.alreadyJoined) {
+        // Already joined on server — update UI to reflect that
+        setChallenge((c) => ({ ...c, joined: true }));
+        toast('You already joined this challenge', { icon: '✅' });
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setJoining(false);
     }
@@ -82,15 +100,29 @@ export default function ChallengeDetail() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           {!challenge.joined ? (
-            <button onClick={handleJoin} disabled={joining} className="btn-primary">
-              {joining ? 'Joining…' : 'Join Challenge'}
+            <button
+              onClick={handleJoin}
+              disabled={joining}
+              className="btn-primary"
+            >
+              {joining ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Joining…
+                </span>
+              ) : 'Join Challenge'}
             </button>
           ) : (
-            <Link to={`/challenges/${id}/submit`} className="btn-primary flex items-center gap-1.5">
-              <PlusCircle size={16} /> Submit Proof
-            </Link>
+            <div className="flex gap-3 flex-wrap">
+              <span className="flex items-center gap-1.5 text-sm text-eco-700 font-medium bg-eco-100 px-3 py-2 rounded-lg">
+                <CheckCircle size={16} /> Joined
+              </span>
+              <Link to={`/challenges/${id}/submit`} className="btn-primary flex items-center gap-1.5">
+                <PlusCircle size={16} /> Submit Proof
+              </Link>
+            </div>
           )}
         </div>
       </div>
