@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Leaf, Trophy, LayoutGrid, User, LogOut, Menu, X } from 'lucide-react';
+import { Leaf, Trophy, LayoutGrid, User, LogOut, Menu, X, Gift } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Navbar() {
@@ -36,6 +36,7 @@ export default function Navbar() {
           <nav className="hidden md:flex items-center gap-1">
             <NavLink to="/feed"        className={navLinkClass}><LayoutGrid size={16} />Feed</NavLink>
             <NavLink to="/leaderboard" className={navLinkClass}><Trophy size={16} />Leaderboard</NavLink>
+            <NavLink to="/vouchers"    className={navLinkClass}><Gift size={16} />Rewards</NavLink>
             <NavLink to={`/profile/${user.userId}`} className={navLinkClass}><User size={16} />Profile</NavLink>
           </nav>
         )}
@@ -68,6 +69,7 @@ export default function Navbar() {
         <div className="md:hidden border-t border-gray-100 px-4 py-3 flex flex-col gap-1 bg-white">
           <NavLink to="/feed"        className={navLinkClass} onClick={() => setOpen(false)}><LayoutGrid size={16} />Feed</NavLink>
           <NavLink to="/leaderboard" className={navLinkClass} onClick={() => setOpen(false)}><Trophy size={16} />Leaderboard</NavLink>
+          <NavLink to="/vouchers"    className={navLinkClass} onClick={() => setOpen(false)}><Gift size={16} />Rewards</NavLink>
           <NavLink to={`/profile/${user.userId}`} className={navLinkClass} onClick={() => setOpen(false)}><User size={16} />Profile</NavLink>
           <button onClick={() => { handleLogout(); setOpen(false); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">

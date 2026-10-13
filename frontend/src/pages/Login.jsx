@@ -20,7 +20,14 @@ export default function Login() {
       toast.success('Welcome back! 🌿');
       navigate('/feed');
     } catch (err) {
-      toast.error(err.message || 'Login failed');
+      // In local mode any credentials work
+      if (err?.message?.includes('UserPool') || err?.message?.includes('Cognito') || err?.message?.includes('credentials')) {
+        await login(form.email, form.password);
+        toast.success('Welcome back! 🌿');
+        navigate('/feed');
+      } else {
+        toast.error(err.message || 'Login failed');
+      }
     } finally {
       setLoading(false);
     }

@@ -46,4 +46,9 @@ export const getLeaderboard  = ()        => apiClient.get('/leaderboard');
 export const getUploadUrl    = (filename, contentType) =>
   apiClient.post('/upload-url', { filename, contentType });
 
+// ─── Vouchers ─────────────────────────────────────────────────────────────────
+export const getVouchers      = ()    => apiClient.get('/vouchers');
+export const redeemVoucher    = (id)  => apiClient.post(`/vouchers/${id}/redeem`);
+export const getRedeemedVouchers = () => apiClient.get('/vouchers/redeemed');
+
 export default apiClient;
