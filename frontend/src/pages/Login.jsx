@@ -4,10 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import { Leaf } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const IS_LOCAL = !import.meta.env.VITE_COGNITO_USER_POOL_ID ||
+  import.meta.env.VITE_COGNITO_USER_POOL_ID === 'us-east-1_PLACEHOLDER';
+
 export default function Login() {
-  const { login } = useAuth();
-  const navigate  = useNavigate();
-  const [form, setForm]     = useState({ email: '', password: '' });
+  const { login }             = useAuth();
+  const navigate              = useNavigate();
+  const [form, setForm]       = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -20,14 +23,7 @@ export default function Login() {
       toast.success('Welcome back! 🌿');
       navigate('/feed');
     } catch (err) {
-      // In local mode any credentials work
-      if (err?.message?.includes('UserPool') || err?.message?.includes('Cognito') || err?.message?.includes('credentials')) {
-        await login(form.email, form.password);
-        toast.success('Welcome back! 🌿');
-        navigate('/feed');
-      } else {
-        toast.error(err.message || 'Login failed');
-      }
+      toast.error(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -36,11 +32,19 @@ export default function Login() {
   return (
     <div className="min-h-[calc(100vh-64px)] flex items-center justify-center bg-eco-50 px-4">
       <div className="w-full max-w-sm">
+
         <div className="text-center mb-8">
           <Leaf size={40} className="text-eco-500 mx-auto mb-3" />
           <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
           <p className="text-gray-500 text-sm mt-1">Sign in to your EcoChallenges account</p>
         </div>
+
+        {/* Local dev hint */}
+        {IS_LOCAL && (
+          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+            🛠️ <strong>Local mode</strong> — enter any email & password to sign in instantly.
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="card flex flex-col gap-4">
           <div>
@@ -60,7 +64,12 @@ export default function Login() {
             />
           </div>
           <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Signing in…
+              </span>
+            ) : 'Sign in'}
           </button>
         </form>
 
