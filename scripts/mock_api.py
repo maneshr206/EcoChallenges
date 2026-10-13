@@ -114,18 +114,18 @@ leaderboard_db = [
     {"userId": "mock-user", "userName": "Manesh Ravikumar", "totalPoints": 150, "challengesCompleted": 3},
 ]
 
-# Gift vouchers catalogue
+# Gift vouchers catalogue — Canadian brands
 vouchers_db = [
-    {"voucherId": "v1", "brand": "Amazon",       "discount": "₹200 off",  "pointsCost": 100, "emoji": "📦", "category": "shopping"},
-    {"voucherId": "v2", "brand": "Swiggy",        "discount": "₹150 off",  "pointsCost": 75,  "emoji": "🍔", "category": "food"},
-    {"voucherId": "v3", "brand": "Zomato",        "discount": "₹100 off",  "pointsCost": 50,  "emoji": "🍕", "category": "food"},
-    {"voucherId": "v4", "brand": "Nykaa",         "discount": "15% off",   "pointsCost": 80,  "emoji": "💄", "category": "beauty"},
-    {"voucherId": "v5", "brand": "Decathlon",     "discount": "₹300 off",  "pointsCost": 150, "emoji": "🏃", "category": "sports"},
-    {"voucherId": "v6", "brand": "BookMyShow",    "discount": "₹100 off",  "pointsCost": 60,  "emoji": "🎬", "category": "entertainment"},
-    {"voucherId": "v7", "brand": "Starbucks",     "discount": "1 free drink","pointsCost": 90, "emoji": "☕", "category": "food"},
-    {"voucherId": "v8", "brand": "Myntra",        "discount": "20% off",   "pointsCost": 120, "emoji": "👗", "category": "shopping"},
-    {"voucherId": "v9", "brand": "Uber",          "discount": "₹75 off",   "pointsCost": 40,  "emoji": "🚗", "category": "travel"},
-    {"voucherId": "v10","brand": "Treebo Hotels", "discount": "₹500 off",  "pointsCost": 200, "emoji": "🏨", "category": "travel"},
+    {"voucherId": "v1",  "brand": "Tim Hortons",      "discount": "$10 off",        "pointsCost": 50,  "emoji": "☕", "category": "food"},
+    {"voucherId": "v2",  "brand": "Sport Chek",        "discount": "15% off",        "pointsCost": 80,  "emoji": "🏃", "category": "sports"},
+    {"voucherId": "v3",  "brand": "Indigo",            "discount": "$15 off",        "pointsCost": 75,  "emoji": "📚", "category": "shopping"},
+    {"voucherId": "v4",  "brand": "Loblaws",           "discount": "$20 off groceries","pointsCost": 100,"emoji": "🛒", "category": "shopping"},
+    {"voucherId": "v5",  "brand": "Cineplex",          "discount": "1 free ticket",  "pointsCost": 120, "emoji": "🎬", "category": "entertainment"},
+    {"voucherId": "v6",  "brand": "Canada Goose",      "discount": "$50 off",        "pointsCost": 200, "emoji": "🧥", "category": "shopping"},
+    {"voucherId": "v7",  "brand": "Roots",             "discount": "20% off",        "pointsCost": 90,  "emoji": "🍁", "category": "shopping"},
+    {"voucherId": "v8",  "brand": "Earls Kitchen",     "discount": "$25 off",        "pointsCost": 110, "emoji": "🍽️", "category": "food"},
+    {"voucherId": "v9",  "brand": "MEC",               "discount": "$30 off",        "pointsCost": 150, "emoji": "🏕️", "category": "sports"},
+    {"voucherId": "v10", "brand": "Aeroplan",          "discount": "500 bonus miles", "pointsCost": 175, "emoji": "✈️", "category": "travel"},
 ]
 redeemed_db = []   # list of redeemed vouchers for mock user
 
