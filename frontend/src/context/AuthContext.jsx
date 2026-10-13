@@ -85,7 +85,18 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (email, password, name) => {
     if (IS_LOCAL) {
-      return { isSignUpComplete: false, nextStep: { signUpStep: 'CONFIRM_SIGN_UP' } };
+      // In local mode: skip email confirmation, create user and log in immediately
+      const u = {
+        ...MOCK_USER,
+        email,
+        name,
+        username: email,
+        signInDetails: { loginId: email },
+      };
+      sessionStorage.setItem('mock_user', JSON.stringify(u));
+      setUser(u);
+      // Signal to Register page that signup is already complete — no confirm step needed
+      return { isSignUpComplete: true, nextStep: { signUpStep: 'DONE' } };
     }
     return cognitoSignUp(email, password, name);
   }, []);
