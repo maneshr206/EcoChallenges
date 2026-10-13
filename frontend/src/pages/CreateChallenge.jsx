@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createChallenge } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import ShareButton from '../components/ShareButton';
-import { PlusCircle, Globe, Lock, Star, Clock, CheckCircle, Copy, Check } from 'lucide-react';
+import { PlusCircle, Globe, Lock, Clock, CheckCircle, Copy, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const CATEGORIES = [
@@ -15,7 +15,14 @@ const CATEGORIES = [
   { value: 'food',           label: 'Food',           emoji: '🍃' },
 ];
 
-const DIFFICULTIES = ['easy', 'medium', 'hard'];
+const DIFFICULTIES = [
+  { value: 'easy',   label: 'Easy',   points: 30, color: 'green',  desc: '30 pts — simple daily habit' },
+  { value: 'medium', label: 'Medium', points: 40, color: 'yellow', desc: '40 pts — weekly commitment' },
+  { value: 'hard',   label: 'Hard',   points: 50, color: 'red',    desc: '50 pts — sustained effort' },
+];
+
+// Points are fixed per difficulty — users cannot set arbitrary points
+const POINTS_BY_DIFFICULTY = { easy: 30, medium: 40, hard: 50 };
 
 // Generate a short random invite code
 function genInviteCode() {
@@ -30,14 +37,16 @@ export default function CreateChallenge() {
   const [codeCopied, setCodeCopied] = useState(false);
 
   const [form, setForm] = useState({
-    title:       '',
-    description: '',
-    category:    'eco-friendly',
-    difficulty:  'medium',
-    points:      30,
+    title:           '',
+    description:     '',
+    category:        'eco-friendly',
+    difficulty:      'medium',
     daysUntilExpiry: 30,
-    visibility:  'public',   // 'public' | 'private'
+    visibility:      'public',
   });
+
+  // Points are always derived from difficulty — never entered manually
+  const points = POINTS_BY_DIFFICULTY[form.difficulty];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -48,19 +57,18 @@ export default function CreateChallenge() {
     e.preventDefault();
     if (!form.title.trim())       { toast.error('Title is required'); return; }
     if (!form.description.trim()) { toast.error('Description is required'); return; }
-    if (form.points < 1 || form.points > 500) { toast.error('Points must be between 1 and 500'); return; }
 
     setLoading(true);
     try {
-      const expiryDate   = new Date(Date.now() + form.daysUntilExpiry * 24 * 60 * 60 * 1000).toISOString();
-      const inviteCode   = form.visibility === 'private' ? genInviteCode() : null;
+      const expiryDate = new Date(Date.now() + form.daysUntilExpiry * 24 * 60 * 60 * 1000).toISOString();
+      const inviteCode = form.visibility === 'private' ? genInviteCode() : null;
 
       const { data } = await createChallenge({
         title:       form.title.trim(),
         description: form.description.trim(),
         category:    form.category,
         difficulty:  form.difficulty,
-        points:      Number(form.points),
+        points,          // always the locked value from difficulty
         expiryDate,
         visibility:  form.visibility,
         inviteCode,
@@ -150,7 +158,7 @@ export default function CreateChallenge() {
                 View Challenge →
               </button>
               <button
-                onClick={() => { setCreated(null); setForm({ title: '', description: '', category: 'eco-friendly', difficulty: 'medium', points: 30, daysUntilExpiry: 30, visibility: 'public' }); }}
+                onClick={() => { setCreated(null); setForm({ title: '', description: '', category: 'eco-friendly', difficulty: 'medium', daysUntilExpiry: 30, visibility: 'public' }); }}
                 className="btn-secondary"
               >
                 Create Another
@@ -260,53 +268,56 @@ export default function CreateChallenge() {
           </div>
         </div>
 
-        {/* Difficulty */}
+        {/* Difficulty — points locked per tier */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Difficulty</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Difficulty & Points
+            <span className="ml-2 text-xs text-gray-400 font-normal">Points are fixed per difficulty</span>
+          </label>
           <div className="flex gap-2">
             {DIFFICULTIES.map((d) => (
               <button
-                key={d}
+                key={d.value}
                 type="button"
-                onClick={() => setForm((f) => ({ ...f, difficulty: d }))}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize border transition-all ${
-                  form.difficulty === d
-                    ? d === 'easy'   ? 'border-green-400 bg-green-50 text-green-700'
-                    : d === 'medium' ? 'border-yellow-400 bg-yellow-50 text-yellow-700'
-                    :                  'border-red-400 bg-red-50 text-red-700'
+                onClick={() => setForm((f) => ({ ...f, difficulty: d.value }))}
+                className={`flex-1 py-3 px-2 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${
+                  form.difficulty === d.value
+                    ? d.color === 'green'  ? 'border-green-400 bg-green-50 text-green-800'
+                    : d.color === 'yellow' ? 'border-yellow-400 bg-yellow-50 text-yellow-800'
+                    :                        'border-red-400 bg-red-50 text-red-800'
                     : 'border-gray-200 text-gray-500 hover:border-gray-300'
                 }`}
               >
-                {d}
+                <span className="font-bold text-sm capitalize">{d.label}</span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  form.difficulty === d.value
+                    ? d.color === 'green'  ? 'bg-green-200 text-green-700'
+                    : d.color === 'yellow' ? 'bg-yellow-200 text-yellow-700'
+                    :                        'bg-red-200 text-red-700'
+                    : 'bg-gray-100 text-gray-500'
+                }`}>
+                  ⭐ {d.points} pts
+                </span>
+                <span className="text-xs opacity-60 text-center leading-tight">{d.desc.split('—')[1]?.trim()}</span>
               </button>
             ))}
           </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Selected: <strong>{form.difficulty}</strong> → <strong>{points} points</strong> awarded on completion
+          </p>
         </div>
 
-        {/* Points & Duration row */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              <Star size={13} className="inline text-yellow-500 fill-yellow-400 mr-1" />
-              Points (1–500)
-            </label>
-            <input
-              type="number" name="points" min={1} max={500}
-              value={form.points} onChange={handleChange}
-              className="input"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              <Clock size={13} className="inline text-gray-400 mr-1" />
-              Duration (days)
-            </label>
-            <input
-              type="number" name="daysUntilExpiry" min={1} max={365}
-              value={form.daysUntilExpiry} onChange={handleChange}
-              className="input"
-            />
-          </div>
+        {/* Duration */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            <Clock size={13} className="inline text-gray-400 mr-1" />
+            Duration (days)
+          </label>
+          <input
+            type="number" name="daysUntilExpiry" min={1} max={365}
+            value={form.daysUntilExpiry} onChange={handleChange}
+            className="input"
+          />
         </div>
 
         <button type="submit" disabled={loading} className="btn-primary w-full">
